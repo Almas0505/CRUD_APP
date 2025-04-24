@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Management System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    form {
+      display: grid;
+      grid-gap: 15px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    label {
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    .actions {
+      display: flex;
+      gap: 5px;
+    }
+    .btn-edit {
+      background-color: #2196F3;
+    }
+    .btn-delete {
+      background-color: #f44336;
+    }
+    .performance-results {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e8f5e9;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Order Management System</h1>
+    
+    <div class="section">
+      <h2>Create New Order</h2>
+      <form id="orderForm">
+        <div class="form-group">
+          <label for="order_id">Order ID</label>
+          <input type="number" id="order_id" required>
+        </div>
+        <div class="form-group">
+          <label for="customer_id">Customer ID</label>
+          <input type="number" id="customer_id" required>
+        </div>
+        <div class="form-group">
+          <label for="amount">Amount</label>
+          <input type="number" id="amount" step="0.01" required>
+        </div>
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" required>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="shipped">Shipped</option>
+          </select>
+        </div>
+        <button type="submit">Create Order</button>
+      </form>
+    </div>
+    
+    <div class="section">
+      <h2>Search Orders</h2>
+      <form id="searchForm">
+        <div class="form-group">
+          <label for="search_customer_id">Customer ID</label>
+          <input type="number" id="search_customer_id">
+        </div>
+        <div class="form-group">
+          <label for="search_status">Status</label>
+          <select id="search_status">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="shipped">Shipped</option>
+          </select>
+        </div>
+        <button type="submit">Search</button>
+      </form>
+    </div>
+    
+    <div class="section">
+      <h2>Orders</h2>
+      <button id="loadOrders">Refresh Orders</button>
+      <div id="ordersList">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer ID</th>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTable">
+            <!-- Orders will be displayed here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>Performance Testing</h2>
+      <div class="form-group">
+        <label for="perf_customer_id">Customer ID for Performance Test</label>
+        <input type="number" id="perf_customer_id" value="1234">
+      </div>
+      <button id="testWithoutIndex">Test Without Index</button>
+      <button id="createIndex">Create Index</button>
+      <button id="testWithIndex">Test With Index</button>
+      <div id="performanceResults" class="performance-results">
+        <!-- Performance results will be displayed here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:5000/api';
+  
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/auth.html';
+        return;
+      }
+      loadOrders();
+    });
+  
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+  
+    async function loadOrders() {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch(`${API_URL}/orders`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+  
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          window.location.href = '/auth.html';
+          return;
+        }
+  
+        const orders = await response.json();
+        renderOrders(orders);
+      } catch (error) {
+        console.error('Error loading orders:', error);
+        alert('Failed to load orders');
+      }
+    }
+  
+    function renderOrders(orders) {
+      const tableBody = document.getElementById('ordersTable');
+      tableBody.innerHTML = '';
+  
+      orders.forEach(order => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${order.order_id}</td>
+          <td>${order.customer_id}</td>
+          <td>${formatDate(order.order_date)}</td>
+          <td>$${order.amount.toFixed(2)}</td>
+          <td>${order.status}</td>
+          <td class="actions">
+            <button class="btn-edit" onclick="editOrder(${order.order_id})">Edit</button>
+            <button class="btn-delete" onclick="deleteOrder(${order.order_id})">Delete</button>
+          </td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+  
+    document.getElementById('orderForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+  
+      const orderData = {
+        order_id: parseInt(document.getElementById('order_id').value),
+        customer_id: parseInt(document.getElementById('customer_id').value),
+        amount: parseFloat(document.getElementById('amount').value),
+        status: document.getElementById('status').value,
+        order_date: new Date()
+      };
+  
+      try {
+        const isEdit = await checkOrderExists(orderData.order_id);
+        const response = await fetch(`${API_URL}/orders${isEdit ? `/${orderData.order_id}` : ''}`, {
+          method: isEdit ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(orderData)
+        });
+  
+        if (response.ok) {
+          alert(`Order ${isEdit ? 'updated' : 'created'} successfully`);
+          document.getElementById('orderForm').reset();
+          loadOrders();
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        console.error('Error saving order:', error);
+        alert('Failed to save order');
+      }
+    });
+  
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+  
+      const searchData = {
+        customer_id: document.getElementById('search_customer_id').value ? 
+          parseInt(document.getElementById('search_customer_id').value) : null,
+        status: document.getElementById('search_status').value || null
+      };
+  
+      try {
+        const response = await fetch(`${API_URL}/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(searchData)
+        });
+  
+        const orders = await response.json();
+        renderOrders(orders);
+      } catch (error) {
+        console.error('Error searching orders:', error);
+        alert('Failed to search orders');
+      }
+    });
+  
+    window.deleteOrder = async (orderId) => {
+      if (confirm(`Are you sure you want to delete order #${orderId}?`)) {
+        try {
+          const response = await fetch(`${API_URL}/orders/${orderId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+  
+          if (response.ok) {
+            alert('Order deleted successfully');
+            loadOrders();
+          } else {
+            const error = await response.json();
+            alert(`Error: ${error.message}`);
+          }
+        } catch (error) {
+          console.error('Error deleting order:', error);
+          alert('Failed to delete order');
+        }
+      }
+    };
+  
+    async function checkOrderExists(orderId) {
+      try {
+        const response = await fetch(`${API_URL}/orders/${orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+  
+    document.getElementById('testWithoutIndex').addEventListener('click', async () => {
+      const customerId = document.getElementById('perf_customer_id').value;
+      try {
+        const start = Date.now();
+        await fetch(`${API_URL}/performance/test-without-index`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ customer_id: parseInt(customerId) })
+        });
+        const end = Date.now();
+        document.getElementById('performanceResults').innerText = `Query Time (Without Index): ${end - start} ms`;
+      } catch (error) {
+        console.error('Error during performance test:', error);
+      }
+    });
+  
+    document.getElementById('createIndex').addEventListener('click', async () => {
+      try {
+        const response = await fetch(`${API_URL}/performance/create-index`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+  
+        if (response.ok) {
+          alert('Index created successfully');
+        } else {
+          alert('Failed to create index');
+        }
+      } catch (error) {
+        console.error('Error creating index:', error);
+      }
+    });
+  
+    document.getElementById('testWithIndex').addEventListener('click', async () => {
+      const customerId = document.getElementById('perf_customer_id').value;
+      try {
+        const start = Date.now();
+        await fetch(`${API_URL}/performance/test-with-index`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ customer_id: parseInt(customerId) })
+        });
+        const end = Date.now();
+        document.getElementById('performanceResults').innerText = `Query Time (With Index): ${end - start} ms`;
+      } catch (error) {
+        console.error('Error during performance test:', error);
+      }
+    });
+  
+    window.editOrder = async (orderId) => {
+      try {
+        const response = await fetch(`${API_URL}/orders/${orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+  
+        if (!response.ok) throw new Error('Failed to fetch order');
+  
+        const order = await response.json();
+  
+        document.getElementById('order_id').value = order.order_id;
+        document.getElementById('customer_id').value = order.customer_id;
+        document.getElementById('amount').value = order.amount;
+        document.getElementById('status').value = order.status;
+  
+        alert(`Order #${orderId} loaded into form for editing`);
+      } catch (error) {
+        console.error('Error editing order:', error);
+        alert('Could not load order for editing');
+      }
+    };
+  </script>
+  
